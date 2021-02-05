@@ -1,10 +1,10 @@
-# Produce a csv of a summoner's match history with timestamp, patch, 
+# Produce a csv of a summoner's match history with timestamp, patch,
 # red/blue side, win/loss, match duration, player names, their champs, their roles, 
 # their KDAs, and their gold
 
 import cassiopeia as cass
-from cassiopeia import Summoner, Match
-from cassiopeia.data import Season, Queue, Role
+from cassiopeia import Summoner
+from cassiopeia.data import Role
 import pandas
 
 SUMMONER_NAME = "xctrunner"
@@ -26,18 +26,14 @@ def get_lane(map_id, summoner):
         return summoner.lane.value
 
 
-def make_row(match, summoner):
-    
-    me = match.participants.filter(lambda x: x.summoner == summoner)[0]
-    was_blue = me.id in [x.id for x in match.blue_team.participants]
+def make_row(match):
 
     row = {
         "date": match.creation,
-        "patch": match.version,
-        "my_champ": champion_id_to_name_mapping[me.champion.id], 
-        "side": "BLUE" if was_blue else "RED", 
-        "win": "WIN" if was_blue == match.blue_team.win else "LOSS", 
-        "duration": match.duration
+        "patch": match.patch.majorminor,
+        "duration": match.duration,
+        "type": match.queue.name,
+
     }
 
     for i, participant in enumerate(match.participants):
@@ -45,12 +41,16 @@ def make_row(match, summoner):
         st = participant.stats
         participant_data = {
             pstr + "name": participant.summoner.name, 
-            pstr + "champ": participant.champion.name, 
+            pstr + "champ": participant.champion.name,
+            pstr + "side": participant.side.name,
+            pstr + "win": st.win,
             pstr + "lane": get_lane(match.map.id, participant),
             pstr + "kills": st.kills,
-            pstr + "deaths": st.deaths, 
-            pstr + "assists": st.assists, 
-            pstr + "gold": st.gold_earned
+            pstr + "deaths": st.deaths,
+            pstr + "assists": st.assists,
+            pstr + "damage": st.total_damage_dealt_to_champions,
+            pstr + "vision": st.vision_score,
+            pstr + "gold": st.gold_earned,
         }
         row.update(participant_data)
     
@@ -70,7 +70,7 @@ match_history = summoner.match_history
 data_list = []
 for match in match_history[:N_MATCHES]:
     try:    
-        row = make_row(match, summoner)
+        row = make_row(match)
         data_list.append(row)
     except Exception as e:
         print(f"Issue with match {match.id} from {match.creation}. {e}")
